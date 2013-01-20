@@ -267,6 +267,7 @@ static char UIViewKeyboardPanRecognizer;
                           delay:0.0f
                         options:keyboardTransitionAnimationCurve
                      animations:^{
+
                          if (self.keyboardDidMoveBlock)
                              self.keyboardDidMoveBlock(keyboardEndFrameView);
                      }
@@ -308,101 +309,131 @@ static char UIViewKeyboardPanRecognizer;
     }
 }
 
-- (void)panGestureDidChange:(UIPanGestureRecognizer *)gesture
-{
-    if(!self.keyboardActiveView || !self.keyboardActiveInput || self.keyboardActiveView.hidden)
-    {
-        [self reAssignFirstResponder];
-        return;
-    }
-    else
-    {
-        self.keyboardActiveView.hidden = NO;
-    }
+- (void) panGestureDidChange:(UIPanGestureRecognizer *)panGestureRecognizer {
+	
+	UIView * const keyboard = self.keyboardActiveView;
+	UIResponder * const input = self.keyboardActiveInput;
+	
+	if (!keyboard || !input || keyboard.hidden) {
+		[self reAssignFirstResponder];
+		return;
+	}
+
+	keyboard.hidden = NO;
+	
+	CGFloat const keyboardViewHeight = keyboard.bounds.size.height;
+	CGFloat const keyboardWindowHeight = keyboard.window.bounds.size.height;
+	CGPoint const touchLocationInKeyboardWindow = [panGestureRecognizer locationInView:keyboard.window];
     
-    CGFloat keyboardViewHeight = self.keyboardActiveView.bounds.size.height;
-    CGFloat keyboardWindowHeight = self.keyboardActiveView.window.bounds.size.height;
-    CGPoint touchLocationInKeyboardWindow = [gesture locationInView:self.keyboardActiveView.window];
-    
-    // If touch is inside trigger offset, then disable keyboard input
-    if (touchLocationInKeyboardWindow.y > keyboardWindowHeight - keyboardViewHeight - self.keyboardTriggerOffset)
-    {
-        self.keyboardActiveView.userInteractionEnabled = NO;
-    }
-    else
-    {
-        self.keyboardActiveView.userInteractionEnabled = YES;
-    }
-    
-    switch (gesture.state)
-    {
-        case UIGestureRecognizerStateBegan:
-        {
-            
-        }
-            break;
-        case UIGestureRecognizerStateChanged:
-        {
-            CGRect newKeyboardViewFrame = self.keyboardActiveView.frame;
-            newKeyboardViewFrame.origin.y = touchLocationInKeyboardWindow.y + self.keyboardTriggerOffset;
-            // Bound the keyboard to the bottom of the screen
-            newKeyboardViewFrame.origin.y = MIN(newKeyboardViewFrame.origin.y, keyboardWindowHeight);
-            newKeyboardViewFrame.origin.y = MAX(newKeyboardViewFrame.origin.y, keyboardWindowHeight - keyboardViewHeight);
-            
-            // Only update if the frame has actually changed
-            if (newKeyboardViewFrame.origin.y != self.keyboardActiveView.frame.origin.y)
-            {
-                CGRect newKeyboardViewFrameInView = [self convertRect:newKeyboardViewFrame fromView:self.keyboardActiveView.window];
-                
-                [UIView animateWithDuration:0.0f
-                                      delay:0.0f
-                                    options:UIViewAnimationOptionTransitionNone
-                                 animations:^{
-                                     [self.keyboardActiveView setFrame:newKeyboardViewFrame];
-                                     if (self.keyboardDidMoveBlock)
-                                         self.keyboardDidMoveBlock(newKeyboardViewFrameInView);
-                                 }
-                                 completion:^(BOOL finished){
-                                 }];
-            }
-        }
-            break;
-        case UIGestureRecognizerStateEnded:
-        case UIGestureRecognizerStateCancelled:
-        {
-            CGFloat thresholdHeight = keyboardWindowHeight - keyboardViewHeight - self.keyboardTriggerOffset + 44.0f;
-            CGPoint velocity = [gesture velocityInView:self.keyboardActiveView];
-            BOOL shouldRecede;
-            
-            if (touchLocationInKeyboardWindow.y < thresholdHeight || velocity.y < 0)
-                shouldRecede = NO;
-            else
-                shouldRecede = YES;
-            
-            // If the keyboard has only been pushed down 44 pixels or has been panned upwards let it pop back up; otherwise, let it drop down
-            CGRect newKeyboardViewFrame = self.keyboardActiveView.frame;
-            newKeyboardViewFrame.origin.y = (!shouldRecede ? keyboardWindowHeight - keyboardViewHeight : keyboardWindowHeight);
-            CGRect newKeyboardViewFrameInView = [self convertRect:newKeyboardViewFrame fromView:self.keyboardActiveView.window];
-            
-            [UIView animateWithDuration:0.25f
-                                  delay:0.0f
-                                options:UIViewAnimationOptionCurveEaseOut
-                             animations:^{
-                                 [self.keyboardActiveView setFrame:newKeyboardViewFrame];
-                                 if (self.keyboardDidMoveBlock)
-                                     self.keyboardDidMoveBlock(newKeyboardViewFrameInView);
-                             }
-                             completion:^(BOOL finished){
-                                 if (shouldRecede)
-                                 {
-                                     [self hideKeyboard];
-                                 }
-                             }];
-        }
-            break;
-        default:
-            break;
-    }
+	//	If touch is inside trigger offset, then disable keyboard input
+	keyboard.userInteractionEnabled = touchLocationInKeyboardWindow.y <= (keyboardWindowHeight - keyboardViewHeight - self.keyboardTriggerOffset);
+	
+	switch (panGestureRecognizer.state) {
+		
+		case UIGestureRecognizerStateBegan: {
+			break;
+		}
+		
+		case UIGestureRecognizerStateChanged: {
+
+			CGRect fromKeyboardBounds = keyboard.bounds;
+			CGPoint fromKeyboardCenter = keyboard.center;
+			
+			CGPoint fromKeyboardTopLeft = (CGPoint){
+				fromKeyboardCenter.x - 0.5f * CGRectGetWidth(fromKeyboardBounds),
+				fromKeyboardCenter.y - 0.5f * CGRectGetHeight(fromKeyboardBounds)
+			};
+			
+			CGPoint toKeyboardTopLeft = (CGPoint){
+				fromKeyboardTopLeft.x,
+				MAX(
+					MIN(
+						touchLocationInKeyboardWindow.y + self.keyboardTriggerOffset,
+						keyboardWindowHeight
+					),
+					keyboardWindowHeight - keyboardViewHeight
+				)
+			};
+					
+			if (!CGPointEqualToPoint(fromKeyboardTopLeft, toKeyboardTopLeft)) {
+			
+				[UIView animateWithDuration:0.0f delay:0.0f options:UIViewAnimationOptionTransitionNone animations:^{
+					
+					keyboard.center = (CGPoint){
+						toKeyboardTopLeft.x + 0.5f * CGRectGetWidth(fromKeyboardBounds),
+						toKeyboardTopLeft.y + 0.5f * CGRectGetHeight(fromKeyboardBounds)
+					};
+					
+					if (self.keyboardDidMoveBlock) {
+						self.keyboardDidMoveBlock([self convertRect:keyboard.frame fromView:keyboard.superview]);
+					}
+				
+				} completion:nil];
+				
+			}
+			
+			break;
+			
+		}
+
+		case UIGestureRecognizerStateEnded:
+		case UIGestureRecognizerStateCancelled: {
+			
+			CGFloat thresholdHeight = keyboardWindowHeight - keyboardViewHeight - self.keyboardTriggerOffset + 44.0f;
+			CGPoint velocity = [panGestureRecognizer velocityInView:self.keyboardActiveView];
+			BOOL shouldRecede = !(touchLocationInKeyboardWindow.y < thresholdHeight || velocity.y < 0);
+			
+			CGRect fromKeyboardBounds = keyboard.bounds;
+			CGPoint fromKeyboardCenter = keyboard.center;
+			
+			CGPoint fromKeyboardTopLeft = (CGPoint){
+				fromKeyboardCenter.x - 0.5f * CGRectGetWidth(fromKeyboardBounds),
+				fromKeyboardCenter.y - 0.5f * CGRectGetHeight(fromKeyboardBounds)
+			};
+			
+			CGPoint toKeyboardTopLeft = (CGPoint){
+				fromKeyboardTopLeft.x,
+				(shouldRecede ?
+					keyboardWindowHeight :
+					(keyboardWindowHeight - keyboardViewHeight))
+			};
+			
+			// If the keyboard has only been pushed down 44 pixels or has been panned upwards let it pop back up; otherwise, let it drop down
+      
+			if (!CGPointEqualToPoint(fromKeyboardTopLeft, toKeyboardTopLeft)) {
+
+				[UIView animateWithDuration:0.25f delay:0.0f options:UIViewAnimationOptionCurveEaseOut animations:^{
+
+					keyboard.center = (CGPoint){
+						toKeyboardTopLeft.x + 0.5f * CGRectGetWidth(fromKeyboardBounds),
+						toKeyboardTopLeft.y + 0.5f * CGRectGetHeight(fromKeyboardBounds)
+					};
+
+					if (self.keyboardDidMoveBlock) {
+						self.keyboardDidMoveBlock([self convertRect:(CGRect){
+							toKeyboardTopLeft,
+							fromKeyboardBounds.size
+						} fromView:keyboard.superview]);
+					}
+			 
+			} completion:^(BOOL finished){
+				
+				if (shouldRecede)
+					[self hideKeyboard];
+						 
+			 }];
+			
+			}
+		
+			break;
+			
+		}
+		
+		default: {
+			break;
+		}
+		
+	}
 }
 
 #pragma mark - Internal Methods
