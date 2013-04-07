@@ -181,6 +181,15 @@ static char UIViewKeyboardPanRecognizer;
 
 #pragma mark - Keyboard Notifications
 
+- (UIViewAnimationOptions) animationOptionsForCurve:(UIViewAnimationCurve)curve {
+	return ((UIViewAnimationOptions[]){
+		[UIViewAnimationCurveEaseInOut] = UIViewAnimationOptionCurveEaseInOut,
+		[UIViewAnimationCurveEaseIn] = UIViewAnimationOptionCurveEaseIn,
+		[UIViewAnimationCurveEaseOut] = UIViewAnimationOptionCurveEaseOut,
+		[UIViewAnimationCurveLinear] = UIViewAnimationOptionCurveLinear
+	})[curve];
+}
+
 - (void)inputKeyboardWillShow:(NSNotification *)notification
 {
     CGRect keyboardEndFrameWindow;
@@ -198,7 +207,7 @@ static char UIViewKeyboardPanRecognizer;
     
     [UIView animateWithDuration:keyboardTransitionDuration
                           delay:0.0f
-                        options:keyboardTransitionAnimationCurve
+                        options:[self animationOptionsForCurve:keyboardTransitionAnimationCurve]
                      animations:^{
                          if (self.keyboardDidMoveBlock)
                              self.keyboardDidMoveBlock(keyboardEndFrameView);
@@ -231,12 +240,14 @@ static char UIViewKeyboardPanRecognizer;
     
     UIViewAnimationCurve keyboardTransitionAnimationCurve;
     [[notification.userInfo valueForKey:UIKeyboardAnimationCurveUserInfoKey] getValue:&keyboardTransitionAnimationCurve];
+		
+		
     
     CGRect keyboardEndFrameView = [self convertRect:keyboardEndFrameWindow fromView:nil];
     
     [UIView animateWithDuration:keyboardTransitionDuration
                           delay:0.0f
-                        options:keyboardTransitionAnimationCurve
+                        options:[self animationOptionsForCurve:keyboardTransitionAnimationCurve]
                      animations:^{
                          if (self.keyboardDidMoveBlock)
                              self.keyboardDidMoveBlock(keyboardEndFrameView);
@@ -265,7 +276,7 @@ static char UIViewKeyboardPanRecognizer;
     
     [UIView animateWithDuration:keyboardTransitionDuration
                           delay:0.0f
-                        options:keyboardTransitionAnimationCurve
+                        options:[self animationOptionsForCurve:keyboardTransitionAnimationCurve]
                      animations:^{
 
                          if (self.keyboardDidMoveBlock)
